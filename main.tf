@@ -4,7 +4,7 @@ locals {
       transit_account     = "aws-account"
       transit_cloud       = "aws"
       transit_cidr        = "10.1.0.0/23"
-      transit_region_name = "East US"
+      transit_region_name = "us-east-1"
       transit_asn         = 65101
       transit_ha_gw       = false
     },
@@ -58,13 +58,13 @@ module "spoke_1" {
 }
 
 module "spoke_2" {
-  for_each = local.transit_firenet
+  for_each = { for k, v in local.transit_firenet : k => v if k != "oci_singapore" }
   source   = "terraform-aviatrix-modules/mc-spoke/aviatrix"
   version  = "1.4.1"
 
   cloud    = each.value.transit_cloud
   name     = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-2"
-  cidr     = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 2)
+  cidr     = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 3)
   region   = each.value.transit_region_name
   account  = each.value.transit_account
   attached = false
@@ -78,7 +78,7 @@ resource "aviatrix_spoke_transit_attachment" "spoke_1" {
 }
 
 resource "aviatrix_spoke_transit_attachment" "spoke_2" {
-  for_each        = local.transit_firenet
+  for_each        = { for k, v in local.transit_firenet : k => v if k != "oci_singapore" }
   spoke_gw_name   = module.spoke_2[each.key].spoke_gateway.gw_name
   transit_gw_name = module.framework.transit[each.key].transit_gateway.gw_name
 }
