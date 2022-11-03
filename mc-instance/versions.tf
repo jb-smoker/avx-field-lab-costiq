@@ -21,15 +21,15 @@ terraform {
       version = ">= 4.96.0"
     }
     local = {
-      source  = "hashicorp/local"
+      source = "hashicorp/local"
       version = ">= 2.2.3"
     }
     null = {
-      source  = "hashicorp/null"
+      source = "hashicorp/null"
       version = ">= 3.2.0"
     }
     tls = {
-      source  = "hashicorp/tls"
+      source = "hashicorp/tls"
       version = ">= 4.0.3"
     }
   }

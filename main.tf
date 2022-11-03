@@ -1,12 +1,14 @@
 locals {
   transit_firenet = {
     aws_east = {
-      transit_account     = "aws-account"
-      transit_cloud       = "aws"
-      transit_cidr        = "10.1.0.0/23"
-      transit_region_name = "us-east-1"
-      transit_asn         = 65101
-      transit_ha_gw       = false
+      transit_account        = "aws-account"
+      transit_cloud          = "aws"
+      transit_cidr           = "10.1.0.0/23"
+      transit_region_name    = "us-east-1"
+      transit_asn            = 65101
+      firenet                = true
+      firenet_firewall_image = "Aviatrix FQDN Egress Filtering"
+      firenet_single_ip_snat = true
     },
     azure_central = {
       transit_account     = "azure-account"
@@ -14,7 +16,6 @@ locals {
       transit_cidr        = "10.2.0.0/23"
       transit_region_name = "Central US"
       transit_asn         = 65102
-      transit_ha_gw       = false
     },
     oci_singapore = {
       transit_account     = "oci-account"
@@ -22,7 +23,6 @@ locals {
       transit_cidr        = "10.3.0.0/23"
       transit_region_name = "ap-singapore-1"
       transit_asn         = 65103
-      transit_ha_gw       = false
     },
     gcp_west = {
       transit_account     = "gcp-account"
@@ -30,8 +30,65 @@ locals {
       transit_cidr        = "10.4.0.0/23"
       transit_region_name = "us-west1"
       transit_asn         = 65104
-      transit_ha_gw       = false
     },
+  }
+  hr_host         = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.aws_east.transit_cidr, "23")}16", 8, 2), 10)
+  accounting_host = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.aws_east.transit_cidr, "23")}16", 8, 3), 10)
+  marketing_host  = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.gcp_west.transit_cidr, "23")}16", 8, 2), 10)
+  ml_host         = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.gcp_west.transit_cidr, "23")}16", 8, 3), 10)
+  shared_db_host  = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.oci_singapore.transit_cidr, "23")}16", 8, 2), 20)
+  eng_dev_host    = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.azure_central.transit_cidr, "23")}16", 8, 2), 40)
+  eng_prod_host   = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.azure_central.transit_cidr, "23")}16", 8, 3), 40)
+  onprem_host     = "172.16.0.10"
+  traffic_gen = {
+    hr = {
+      private_ip = local.hr_host
+      name       = "human-resources-app"
+      internal   = [local.onprem_host, local.shared_db_host]
+      interval   = "15"
+    }
+    accounting = {
+      private_ip = local.accounting_host
+      name       = "accounting-app"
+      internal   = [local.shared_db_host]
+      interval   = "5"
+    }
+    marketing = {
+      private_ip = local.marketing_host
+      name       = "marketing-app"
+      internal   = [local.onprem_host, local.shared_db_host]
+      interval   = "10"
+    }
+    eng_dev = {
+      private_ip = local.eng_dev_host
+      name       = "engineering-dev-app"
+      internal   = [local.onprem_host, local.shared_db_host, local.ml_host]
+      interval   = "15"
+    }
+    eng_prod = {
+      private_ip = local.eng_prod_host
+      name       = "engineering-prod-app"
+      internal   = [local.onprem_host, local.shared_db_host, local.ml_host]
+      interval   = "5"
+    }
+    shared_db = {
+      private_ip = local.shared_db_host
+      name       = "shared-db"
+      internal   = [local.hr_host, local.accounting_host, local.marketing_host, local.eng_dev_host, local.eng_prod_host]
+      interval   = "15"
+    }
+    ml = {
+      private_ip = local.ml_host
+      name       = "ml-app"
+      internal   = [local.eng_dev_host, local.eng_prod_host]
+      interval   = "15"
+    }
+    on_prem = {
+      private_ip = local.onprem_host
+      name       = "on-prem-app"
+      internal   = [local.hr_host, local.marketing_host, local.eng_dev_host, local.eng_prod_host]
+      interval   = "15"
+    }
   }
 }
 
@@ -48,13 +105,13 @@ module "spoke_1" {
   source   = "terraform-aviatrix-modules/mc-spoke/aviatrix"
   version  = "1.4.1"
 
-  cloud    = each.value.transit_cloud
-  name     = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-1"
-  cidr     = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 2)
-  region   = each.value.transit_region_name
-  account  = each.value.transit_account
-  attached = false
-  ha_gw    = false
+  cloud      = each.value.transit_cloud
+  name       = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-1"
+  cidr       = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 2)
+  region     = each.value.transit_region_name
+  account    = each.value.transit_account
+  transit_gw = module.framework.transit[each.key].transit_gateway.gw_name
+  attached   = true
 }
 
 module "spoke_2" {
@@ -62,23 +119,103 @@ module "spoke_2" {
   source   = "terraform-aviatrix-modules/mc-spoke/aviatrix"
   version  = "1.4.1"
 
-  cloud    = each.value.transit_cloud
-  name     = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-2"
-  cidr     = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 3)
-  region   = each.value.transit_region_name
-  account  = each.value.transit_account
-  attached = false
-  ha_gw    = false
+  cloud      = each.value.transit_cloud
+  name       = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-2"
+  cidr       = cidrsubnet("${trimsuffix(each.value.transit_cidr, "23")}16", 8, 3)
+  region     = each.value.transit_region_name
+  account    = each.value.transit_account
+  transit_gw = module.framework.transit[each.key].transit_gateway.gw_name
+  attached   = true
 }
 
-resource "aviatrix_spoke_transit_attachment" "spoke_1" {
-  for_each        = local.transit_firenet
-  spoke_gw_name   = module.spoke_1[each.key].spoke_gateway.gw_name
-  transit_gw_name = module.framework.transit[each.key].transit_gateway.gw_name
+resource "aviatrix_transit_firenet_policy" "peering" {
+  for_each                     = { for k, v in local.transit_firenet : k => v if k != "aws_east" }
+  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
+  inspected_resource_name      = "PEERING:${module.framework.transit[each.key].transit_gateway.gw_name}"
 }
 
-resource "aviatrix_spoke_transit_attachment" "spoke_2" {
-  for_each        = { for k, v in local.transit_firenet : k => v if k != "oci_singapore" }
-  spoke_gw_name   = module.spoke_2[each.key].spoke_gateway.gw_name
-  transit_gw_name = module.framework.transit[each.key].transit_gateway.gw_name
+resource "aviatrix_transit_firenet_policy" "aws_spoke_1" {
+  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
+  inspected_resource_name      = "SPOKE:${module.spoke_1["aws_east"].spoke_gateway.gw_name}"
+}
+
+resource "aviatrix_transit_firenet_policy" "aws_spoke_2" {
+  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
+  inspected_resource_name      = "SPOKE:${module.spoke_2["aws_east"].spoke_gateway.gw_name}"
+}
+
+module "workload_hr" {
+  source            = "./mc-instance"
+  vpc_id            = module.spoke_1["aws_east"].vpc.vpc_id
+  subnet_id         = module.spoke_1["aws_east"].vpc.private_subnets[0].subnet_id
+  key_name          = var.key_name
+  cloud             = local.transit_firenet.aws_east.transit_cloud
+  traffic_gen       = local.traffic_gen.hr
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
+}
+
+module "workload_accounting" {
+  source            = "./mc-instance"
+  vpc_id            = module.spoke_2["aws_east"].vpc.vpc_id
+  subnet_id         = module.spoke_2["aws_east"].vpc.private_subnets[0].subnet_id
+  key_name          = var.key_name
+  cloud             = local.transit_firenet.aws_east.transit_cloud
+  traffic_gen       = local.traffic_gen.accounting
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
+}
+
+module "workload_eng_dev" {
+  source            = "./mc-instance"
+  resource_group    = module.spoke_1["azure_central"].vpc.resource_group
+  subnet_id         = module.spoke_1["azure_central"].vpc.private_subnets[0].subnet_id
+  location          = local.transit_firenet.azure_central.transit_region_name
+  cloud             = local.transit_firenet.azure_central.transit_cloud
+  traffic_gen       = local.traffic_gen.eng_dev
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
+}
+
+module "workload_eng_prod" {
+  source            = "./mc-instance"
+  resource_group    = module.spoke_2["azure_central"].vpc.resource_group
+  subnet_id         = module.spoke_2["azure_central"].vpc.private_subnets[0].subnet_id
+  location          = local.transit_firenet.azure_central.transit_region_name
+  cloud             = local.transit_firenet.azure_central.transit_cloud
+  traffic_gen       = local.traffic_gen.eng_prod
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
+}
+
+module "workload_shared_db" {
+  source               = "./mc-instance"
+  oci_compartment_ocid = var.oci_compartment_ocid
+  subnet_id            = module.spoke_1["oci_singapore"].vpc.private_subnets[0].subnet_id
+  cloud                = local.transit_firenet.oci_singapore.transit_cloud
+  traffic_gen          = local.traffic_gen.shared_db
+  common_tags          = var.common_tags
+  workload_password    = var.workload_password
+}
+
+module "workload_marketing" {
+  source            = "./mc-instance"
+  vpc_id            = module.spoke_1["gcp_west"].vpc.name
+  subnet_id         = module.spoke_1["gcp_west"].vpc.subnets[0].name
+  cloud             = local.transit_firenet.gcp_west.transit_cloud
+  region            = local.transit_firenet.gcp_west.transit_region_name
+  traffic_gen       = local.traffic_gen.marketing
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
+}
+
+module "workload_ml" {
+  source            = "./mc-instance"
+  vpc_id            = module.spoke_2["gcp_west"].vpc.name
+  subnet_id         = module.spoke_2["gcp_west"].vpc.subnets[0].name
+  cloud             = local.transit_firenet.gcp_west.transit_cloud
+  region            = local.transit_firenet.gcp_west.transit_region_name
+  traffic_gen       = local.traffic_gen.ml
+  common_tags       = var.common_tags
+  workload_password = var.workload_password
 }

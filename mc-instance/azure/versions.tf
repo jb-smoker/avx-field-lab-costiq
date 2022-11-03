@@ -1,24 +1,8 @@
 terraform {
   required_providers {
-    aviatrix = {
-      source  = "aviatrixsystems/aviatrix"
-      version = ">= 2.24.0"
-    }
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.36.0"
-    }
     azurerm = {
       source  = "hashicorp/azurerm"
       version = ">= 2.76"
-    }
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 4.41.0"
-    }
-    oci = {
-      source  = "oracle/oci"
-      version = ">= 4.96.0"
     }
     local = {
       source  = "hashicorp/local"
