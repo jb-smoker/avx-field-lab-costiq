@@ -1,4 +1,3 @@
-variable "cloud" {}
 variable "common_tags" {}
 variable "oci_compartment_ocid" {}
 variable "subnet_id" {}

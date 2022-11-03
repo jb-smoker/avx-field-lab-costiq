@@ -15,7 +15,8 @@ module "azure" {
   common_tags       = var.common_tags
   subnet_id         = var.subnet_id
   traffic_gen       = var.traffic_gen
-  vpc_id            = var.vpc_id
+  location          = var.location
+  resource_group    = var.resource_group
   workload_password = var.workload_password
 }
 
@@ -26,14 +27,16 @@ module "gcp" {
   subnet_id         = var.subnet_id
   traffic_gen       = var.traffic_gen
   vpc_id            = var.vpc_id
+  region            = var.region
   workload_password = var.workload_password
 }
 
 module "oci" {
-  for_each          = var.cloud == "oci" ? { instance = true } : {}
-  source            = "./oci"
-  common_tags       = var.common_tags
-  subnet_id         = var.subnet_id
-  traffic_gen       = var.traffic_gen
-  workload_password = var.workload_password
+  for_each             = var.cloud == "oci" ? { instance = true } : {}
+  source               = "./oci"
+  common_tags          = var.common_tags
+  oci_compartment_ocid = var.oci_compartment_ocid
+  subnet_id            = var.subnet_id
+  traffic_gen          = var.traffic_gen
+  workload_password    = var.workload_password
 }

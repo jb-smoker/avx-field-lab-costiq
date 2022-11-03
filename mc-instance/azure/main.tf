@@ -1,7 +1,7 @@
 resource "azurerm_network_interface" "this" {
   name                = var.traffic_gen.name
   location            = var.location
-  resource_group_name = var.traffic_gen.resource_group
+  resource_group_name = var.resource_group
   ip_configuration {
     name                          = var.traffic_gen.name
     subnet_id                     = var.subnet_id
@@ -43,7 +43,9 @@ resource "azurerm_virtual_machine" "this" {
   os_profile_linux_config {
     disable_password_authentication = false
   }
-  tags = var.common_tags
+  tags = merge(var.common_tags, {
+    Name = var.traffic_gen.name
+  })
 }
 
 

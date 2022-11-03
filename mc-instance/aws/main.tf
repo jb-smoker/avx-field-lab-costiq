@@ -93,5 +93,7 @@ resource "aws_instance" "this" {
     volume_size = 8
   }
 
-  tags = var.common_tags
+  tags = merge(var.common_tags, {
+    Name = var.traffic_gen.name
+  })
 }

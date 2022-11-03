@@ -34,5 +34,7 @@ module "this" {
   extended_metadata = {
     user_data = data.cloudinit_config.this.rendered
   }
-  freeform_tags = var.common_tags
+  freeform_tags = merge(var.common_tags, {
+    Name = var.traffic_gen.name
+  })
 }
