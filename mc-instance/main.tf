@@ -1,12 +1,13 @@
 module "aws" {
-  for_each          = var.cloud == "aws" ? { instance = true } : {}
-  source            = "./aws"
-  common_tags       = var.common_tags
-  key_name          = var.key_name
-  subnet_id         = var.subnet_id
-  traffic_gen       = var.traffic_gen
-  vpc_id            = var.vpc_id
-  workload_password = var.workload_password
+  for_each             = var.cloud == "aws" ? { instance = true } : {}
+  source               = "./aws"
+  common_tags          = var.common_tags
+  key_name             = var.key_name
+  subnet_id            = var.subnet_id
+  traffic_gen          = var.traffic_gen
+  vpc_id               = var.vpc_id
+  workload_password    = var.workload_password
+  iam_instance_profile = var.iam_instance_profile
 }
 
 module "azure" {

@@ -9,3 +9,4 @@ variable "subnet_id" {}
 variable "traffic_gen" {}
 variable "vpc_id" { default = "" }
 variable "workload_password" {}
+variable "iam_instance_profile" { default = "" }

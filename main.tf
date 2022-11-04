@@ -39,7 +39,8 @@ locals {
   shared_db_host  = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.oci_singapore.transit_cidr, "23")}16", 8, 2), 20)
   eng_dev_host    = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.azure_central.transit_cidr, "23")}16", 8, 2), 40)
   eng_prod_host   = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.azure_central.transit_cidr, "23")}16", 8, 3), 40)
-  onprem_host     = "172.16.0.10"
+  onprem_host     = cidrhost(local.onprem_cidr, 10)
+  onprem_cidr     = "172.16.0.0/16"
   traffic_gen = {
     hr = {
       private_ip = local.hr_host
@@ -83,7 +84,7 @@ locals {
       internal   = [local.eng_dev_host, local.eng_prod_host]
       interval   = "15"
     }
-    on_prem = {
+    onprem_dc = {
       private_ip = local.onprem_host
       name       = "on-prem-app"
       internal   = [local.hr_host, local.marketing_host, local.eng_dev_host, local.eng_prod_host]
@@ -128,61 +129,106 @@ module "spoke_2" {
   attached   = true
 }
 
+module "aws_onprem_dc" {
+  source          = "./aws-onprem-dc"
+  vpc_id          = module.framework.transit["aws_east"].vpc.vpc_id
+  region          = local.transit_firenet.aws_east.transit_region_name
+  account_name    = local.transit_firenet.aws_east.transit_account
+  transit_gw_name = module.framework.transit["aws_east"].transit_gateway.gw_name
+  cidr            = local.onprem_cidr
+  asn             = local.transit_firenet.aws_east.transit_asn
+  transit_eip     = module.framework.transit["aws_east"].transit_gateway.eip
+  transit_ha_eip  = module.framework.transit["aws_east"].transit_gateway.ha_eip
+  common_tags     = var.common_tags
+}
+
 resource "aviatrix_transit_firenet_policy" "peering" {
   for_each                     = { for k, v in local.transit_firenet : k => v if k != "aws_east" }
   transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
   inspected_resource_name      = "PEERING:${module.framework.transit[each.key].transit_gateway.gw_name}"
+  depends_on = [
+    module.framework
+  ]
 }
 
 resource "aviatrix_transit_firenet_policy" "aws_spoke_1" {
   transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
   inspected_resource_name      = "SPOKE:${module.spoke_1["aws_east"].spoke_gateway.gw_name}"
+  depends_on = [
+    module.framework
+  ]
 }
 
 resource "aviatrix_transit_firenet_policy" "aws_spoke_2" {
   transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
   inspected_resource_name      = "SPOKE:${module.spoke_2["aws_east"].spoke_gateway.gw_name}"
+  depends_on = [
+    module.framework
+  ]
 }
 
-# module "aws_onprem_dc" {
-#   source            = "./aws-onprem-dc"
-#   common_tags       = var.common_tags
-#   region            = local.transit_firenet.aws_east.transit_region_name
-#   account_name      = local.transit_firenet.aws_east.transit_account
-#   transit_gw_name   = module.framework.transit["aws_east"].transit_gateway.gw_name
-#   cidr              = "172.16.0.0/16"
-#   asn               = "65001"
-#   workload_password = var.workload_password
-# }
+resource "aviatrix_transit_firenet_policy" "site_2_cloud" {
+  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
+  inspected_resource_name      = "SITE2CLOUD:${module.aws_onprem_dc.aviatrix_transit_external_device_conn_name}"
+  depends_on = [
+    module.framework
+  ]
+}
 
-module "workload_hr" {
+module "workload_onprem_dc" {
   source      = "./mc-instance"
-  vpc_id      = module.spoke_1["aws_east"].vpc.vpc_id
-  subnet_id   = module.spoke_1["aws_east"].vpc.private_subnets[0].subnet_id
+  vpc_id      = module.aws_onprem_dc.vpc.vpc_id
+  subnet_id   = module.aws_onprem_dc.vpc.private_subnets[0].subnet_id
   key_name    = var.key_name
   cloud       = local.transit_firenet.aws_east.transit_cloud
-  traffic_gen = local.traffic_gen.hr
+  traffic_gen = local.traffic_gen.onprem_dc
+  common_tags = merge(var.common_tags, {
+    Location    = "Onprem Data Center"
+    Application = "Onprem App"
+    Environment = "Production"
+  })
+  workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
+}
+
+module "workload_hr" {
+  source               = "./mc-instance"
+  vpc_id               = module.spoke_1["aws_east"].vpc.vpc_id
+  subnet_id            = module.spoke_1["aws_east"].vpc.private_subnets[0].subnet_id
+  key_name             = var.key_name
+  cloud                = local.transit_firenet.aws_east.transit_cloud
+  traffic_gen          = local.traffic_gen.hr
+  iam_instance_profile = aws_iam_instance_profile.ec2_role_for_ssm.name
   common_tags = merge(var.common_tags, {
     Department  = "Human Resources"
     Application = "HR App"
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_accounting" {
-  source      = "./mc-instance"
-  vpc_id      = module.spoke_2["aws_east"].vpc.vpc_id
-  subnet_id   = module.spoke_2["aws_east"].vpc.private_subnets[0].subnet_id
-  key_name    = var.key_name
-  cloud       = local.transit_firenet.aws_east.transit_cloud
-  traffic_gen = local.traffic_gen.accounting
+  source               = "./mc-instance"
+  vpc_id               = module.spoke_2["aws_east"].vpc.vpc_id
+  subnet_id            = module.spoke_2["aws_east"].vpc.private_subnets[0].subnet_id
+  key_name             = var.key_name
+  cloud                = local.transit_firenet.aws_east.transit_cloud
+  traffic_gen          = local.traffic_gen.accounting
+  iam_instance_profile = aws_iam_instance_profile.ec2_role_for_ssm.name
   common_tags = merge(var.common_tags, {
     Department  = "Accounting"
     Application = "Accounting App"
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_eng_dev" {
@@ -198,6 +244,9 @@ module "workload_eng_dev" {
     Environment = "Development"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_eng_prod" {
@@ -213,6 +262,9 @@ module "workload_eng_prod" {
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_shared_db" {
@@ -226,6 +278,9 @@ module "workload_shared_db" {
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_marketing" {
@@ -241,6 +296,9 @@ module "workload_marketing" {
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }
 
 module "workload_ml" {
@@ -255,4 +313,7 @@ module "workload_ml" {
     Environment = "Production"
   })
   workload_password = var.workload_password
+  depends_on = [
+    aviatrix_transit_firenet_policy.site_2_cloud
+  ]
 }

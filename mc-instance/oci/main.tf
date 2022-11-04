@@ -21,7 +21,7 @@ module "this" {
   ad_number                   = 1 # AD number to provision instances. If null, instances are provisionned in a rolling manner starting with AD1
   compartment_ocid            = var.oci_compartment_ocid
   instance_display_name       = var.traffic_gen.name
-  source_ocid                 = "ocid1.image.oc1.iad.aaaaaaaavjw7wzqmcxfnbxckuauqq3d6z6qd35kbumfyydaby3zjc5kw55hq"
+  source_ocid                 = "ocid1.image.oc1.ap-singapore-1.aaaaaaaaou6afe7uzl4lqcgy7yhcign5m6qgr5ocvkhszikouq2epbh76yra"
   subnet_ocids                = [var.subnet_id]
   public_ip                   = "NONE"
   private_ips                 = [var.traffic_gen.private_ip]

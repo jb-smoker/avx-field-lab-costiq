@@ -72,12 +72,13 @@ resource "aws_key_pair" "workload_key" {
 }
 
 resource "aws_instance" "this" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"
-  ebs_optimized = false
-  monitoring    = true
-  key_name      = aws_key_pair.workload_key.key_name
-  subnet_id     = var.subnet_id
+  ami                  = data.aws_ami.ubuntu.id
+  instance_type        = "t3.micro"
+  ebs_optimized        = false
+  monitoring           = true
+  key_name             = aws_key_pair.workload_key.key_name
+  subnet_id            = var.subnet_id
+  iam_instance_profile = var.iam_instance_profile
   user_data = templatefile("${path.module}/../ubuntu-traffic-gen.tpl", {
     name     = var.traffic_gen.name
     internal = join(",", var.traffic_gen.internal)

@@ -1,6 +1,13 @@
 locals {
   name = "aws-onprem-dc"
 }
+
+resource "random_password" "this" {
+  length           = 16
+  special          = true
+  override_special = "._"
+}
+
 resource "aviatrix_vpc" "this" {
   cloud_type           = 1
   region               = var.region
@@ -13,7 +20,7 @@ resource "aviatrix_vpc" "this" {
 
 resource "aws_customer_gateway" "this" {
   bgp_asn    = var.asn
-  ip_address = "54.205.99.167"
+  ip_address = var.transit_eip
   type       = "ipsec.1"
 
   tags = merge(var.common_tags, {
@@ -23,7 +30,7 @@ resource "aws_customer_gateway" "this" {
 
 resource "aws_customer_gateway" "this_ha" {
   bgp_asn    = var.asn
-  ip_address = "54.211.31.191"
+  ip_address = var.transit_ha_eip
   type       = "ipsec.1"
 
   tags = merge(var.common_tags, {
@@ -46,7 +53,7 @@ resource "aws_vpn_connection" "this" {
   type                  = "ipsec.1"
   static_routes_only    = false
   tunnel1_inside_cidr   = "169.254.100.0/30"
-  tunnel1_preshared_key = var.workload_password
+  tunnel1_preshared_key = random_password.this.result
 }
 
 resource "aws_vpn_connection" "this_ha" {
@@ -55,18 +62,18 @@ resource "aws_vpn_connection" "this_ha" {
   type                  = "ipsec.1"
   static_routes_only    = false
   tunnel1_inside_cidr   = "169.254.101.0/30"
-  tunnel1_preshared_key = var.workload_password
+  tunnel1_preshared_key = random_password.this.result
 }
 
 resource "aviatrix_transit_external_device_conn" "this" {
-  vpc_id             = aviatrix_vpc.this.vpc_id
+  vpc_id             = var.vpc_id
   connection_name    = local.name
   gw_name            = var.transit_gw_name
   connection_type    = "bgp"
   bgp_local_as_num   = var.asn
   bgp_remote_as_num  = 65000
   remote_gateway_ip  = "${aws_vpn_connection.this.tunnel1_address},${aws_vpn_connection.this_ha.tunnel1_address}"
-  pre_shared_key     = var.workload_password
+  pre_shared_key     = random_password.this.result
   local_tunnel_cidr  = "169.254.100.2/30,169.254.101.2/30"
   remote_tunnel_cidr = "169.254.100.1/30,169.254.101.1/30"
 }
