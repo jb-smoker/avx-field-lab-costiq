@@ -1,14 +1,11 @@
 locals {
   transit_firenet = {
     aws_east = {
-      transit_account        = var.aws_account
-      transit_cloud          = "aws"
-      transit_cidr           = "10.1.0.0/23"
-      transit_region_name    = "us-east-1"
-      transit_asn            = 65101
-      firenet                = true
-      firenet_firewall_image = "Aviatrix FQDN Egress Filtering"
-      firenet_single_ip_snat = true
+      transit_account     = var.aws_account
+      transit_cloud       = "aws"
+      transit_cidr        = "10.1.0.0/23"
+      transit_region_name = "us-east-1"
+      transit_asn         = 65101
     },
     azure_central = {
       transit_account     = var.azure_account
@@ -46,49 +43,49 @@ locals {
       private_ip = local.hr_host
       name       = "human-resources-app"
       internal   = [local.onprem_host, local.shared_db_host]
-      interval   = "15"
+      interval   = "6"
     }
     accounting = {
       private_ip = local.accounting_host
       name       = "accounting-app"
       internal   = [local.shared_db_host]
-      interval   = "5"
+      interval   = "2"
     }
     marketing = {
       private_ip = local.marketing_host
       name       = "marketing-app"
       internal   = [local.onprem_host, local.shared_db_host]
-      interval   = "10"
+      interval   = "4"
     }
     eng_dev = {
       private_ip = local.eng_dev_host
       name       = "engineering-dev-app"
       internal   = [local.onprem_host, local.shared_db_host, local.ml_host]
-      interval   = "15"
+      interval   = "6"
     }
     eng_prod = {
       private_ip = local.eng_prod_host
       name       = "engineering-prod-app"
       internal   = [local.onprem_host, local.shared_db_host, local.ml_host]
-      interval   = "5"
+      interval   = "2"
     }
     shared_db = {
       private_ip = local.shared_db_host
       name       = "shared-db"
       internal   = [local.hr_host, local.accounting_host, local.marketing_host, local.eng_dev_host, local.eng_prod_host]
-      interval   = "15"
+      interval   = "6"
     }
     ml = {
       private_ip = local.ml_host
       name       = "ml-app"
-      internal   = [local.eng_dev_host, local.eng_prod_host]
-      interval   = "15"
+      internal   = [local.eng_dev_host, local.eng_prod_host, local.marketing_host]
+      interval   = "6"
     }
     onprem_dc = {
       private_ip = local.onprem_host
       name       = "on-prem-app"
       internal   = [local.hr_host, local.marketing_host, local.eng_dev_host, local.eng_prod_host]
-      interval   = "15"
+      interval   = "6"
     }
   }
 }
@@ -142,39 +139,6 @@ module "aws_onprem_dc" {
   common_tags     = var.common_tags
 }
 
-resource "aviatrix_transit_firenet_policy" "peering" {
-  for_each                     = { for k, v in local.transit_firenet : k => v if k != "aws_east" }
-  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
-  inspected_resource_name      = "PEERING:${module.framework.transit[each.key].transit_gateway.gw_name}"
-  depends_on = [
-    module.framework
-  ]
-}
-
-resource "aviatrix_transit_firenet_policy" "aws_spoke_1" {
-  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
-  inspected_resource_name      = "SPOKE:${module.spoke_1["aws_east"].spoke_gateway.gw_name}"
-  depends_on = [
-    module.framework
-  ]
-}
-
-resource "aviatrix_transit_firenet_policy" "aws_spoke_2" {
-  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
-  inspected_resource_name      = "SPOKE:${module.spoke_2["aws_east"].spoke_gateway.gw_name}"
-  depends_on = [
-    module.framework
-  ]
-}
-
-resource "aviatrix_transit_firenet_policy" "site_2_cloud" {
-  transit_firenet_gateway_name = module.framework.transit["aws_east"].transit_gateway.gw_name
-  inspected_resource_name      = "SITE2CLOUD:${module.aws_onprem_dc.aviatrix_transit_external_device_conn_name}"
-  depends_on = [
-    module.framework
-  ]
-}
-
 module "workload_onprem_dc" {
   source      = "./mc-instance"
   vpc_id      = module.aws_onprem_dc.vpc.vpc_id
@@ -188,9 +152,6 @@ module "workload_onprem_dc" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_hr" {
@@ -207,9 +168,6 @@ module "workload_hr" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_accounting" {
@@ -226,9 +184,6 @@ module "workload_accounting" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_eng_dev" {
@@ -244,9 +199,6 @@ module "workload_eng_dev" {
     Environment = "Development"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_eng_prod" {
@@ -262,9 +214,6 @@ module "workload_eng_prod" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_shared_db" {
@@ -278,9 +227,6 @@ module "workload_shared_db" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_marketing" {
@@ -296,9 +242,6 @@ module "workload_marketing" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
 
 module "workload_ml" {
@@ -313,7 +256,4 @@ module "workload_ml" {
     Environment = "Production"
   })
   workload_password = var.workload_password
-  depends_on = [
-    aviatrix_transit_firenet_policy.site_2_cloud
-  ]
 }
