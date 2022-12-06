@@ -95,6 +95,8 @@ aws_account | The label given to the `AWS` account credential in the Aviatrix Co
 azure_account | The label given to the `Azure` account credential in the Aviatrix Controller
 gcp_account| The label given to the `GCP` account credential in the Aviatrix Controller
 oci_account | The label given to the `OCI` account credential in the Aviatrix Controller
+workload_password | Ssh password for the workload (traffic-generating) instances in each spoke
+oci_compartment_ocid | Compartment ocid in the `OCI` tenant configured in the `OCI` provider
 
 ## Notes
 
