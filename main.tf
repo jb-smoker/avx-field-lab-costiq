@@ -6,7 +6,7 @@ locals {
       transit_cidr        = "10.1.0.0/23"
       transit_region_name = "us-east-1"
       transit_asn         = 65101
-      ha_gw               = false
+      transit_ha_gw       = false
     },
     azure_central = {
       transit_account     = var.azure_account
@@ -14,7 +14,7 @@ locals {
       transit_cidr        = "10.2.0.0/23"
       transit_region_name = "Central US"
       transit_asn         = 65102
-      ha_gw               = false
+      htransit_ha_gwa_gw  = false
     },
     oci_singapore = {
       transit_account     = var.oci_account
@@ -22,7 +22,7 @@ locals {
       transit_cidr        = "10.3.0.0/23"
       transit_region_name = "ap-singapore-1"
       transit_asn         = 65103
-      ha_gw               = false
+      transit_ha_gw       = false
     },
     gcp_west = {
       transit_account     = var.gcp_account
@@ -30,7 +30,7 @@ locals {
       transit_cidr        = "10.4.0.0/23"
       transit_region_name = "us-west1"
       transit_asn         = 65104
-      ha_gw               = false
+      transit_ha_gw       = false
     },
   }
   hr_host         = cidrhost(cidrsubnet("${trimsuffix(local.transit_firenet.aws_east.transit_cidr, "23")}16", 8, 2), 10)
