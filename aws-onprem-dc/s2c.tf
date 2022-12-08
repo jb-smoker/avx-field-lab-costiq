@@ -28,15 +28,15 @@ resource "aws_customer_gateway" "this" {
   })
 }
 
-resource "aws_customer_gateway" "this_ha" {
-  bgp_asn    = var.asn
-  ip_address = var.transit_ha_eip
-  type       = "ipsec.1"
+# resource "aws_customer_gateway" "this_ha" {
+#   bgp_asn    = var.asn
+#   ip_address = var.transit_ha_eip
+#   type       = "ipsec.1"
 
-  tags = merge(var.common_tags, {
-    Name = "${local.name}-acg-ha"
-  })
-}
+#   tags = merge(var.common_tags, {
+#     Name = "${local.name}-acg-ha"
+#   })
+# }
 
 resource "aws_vpn_gateway" "this" {
   vpc_id          = aviatrix_vpc.this.vpc_id
@@ -56,14 +56,14 @@ resource "aws_vpn_connection" "this" {
   tunnel1_preshared_key = random_password.this.result
 }
 
-resource "aws_vpn_connection" "this_ha" {
-  vpn_gateway_id        = aws_vpn_gateway.this.id
-  customer_gateway_id   = aws_customer_gateway.this_ha.id
-  type                  = "ipsec.1"
-  static_routes_only    = false
-  tunnel1_inside_cidr   = "169.254.101.0/30"
-  tunnel1_preshared_key = random_password.this.result
-}
+# resource "aws_vpn_connection" "this_ha" {
+#   vpn_gateway_id        = aws_vpn_gateway.this.id
+#   customer_gateway_id   = aws_customer_gateway.this_ha.id
+#   type                  = "ipsec.1"
+#   static_routes_only    = false
+#   tunnel1_inside_cidr   = "169.254.101.0/30"
+#   tunnel1_preshared_key = random_password.this.result
+# }
 
 resource "aviatrix_transit_external_device_conn" "this" {
   vpc_id             = var.vpc_id
@@ -72,7 +72,7 @@ resource "aviatrix_transit_external_device_conn" "this" {
   connection_type    = "bgp"
   bgp_local_as_num   = var.asn
   bgp_remote_as_num  = 65000
-  remote_gateway_ip  = "${aws_vpn_connection.this.tunnel1_address},${aws_vpn_connection.this_ha.tunnel1_address}"
+  remote_gateway_ip  = aws_vpn_connection.this.tunnel1_address #,${aws_vpn_connection.this_ha.tunnel1_address}"
   pre_shared_key     = random_password.this.result
   local_tunnel_cidr  = "169.254.100.2/30,169.254.101.2/30"
   remote_tunnel_cidr = "169.254.100.1/30,169.254.101.1/30"
