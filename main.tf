@@ -97,7 +97,7 @@ locals {
 # https://registry.terraform.io/modules/terraform-aviatrix-modules/mc-transit-deployment-framework/aviatrix/latest
 module "framework" {
   source          = "terraform-aviatrix-modules/mc-transit-deployment-framework/aviatrix"
-  version         = "v1.0.1"
+  version         = "v1.1.0"
   transit_firenet = local.transit_firenet
 }
 
@@ -105,7 +105,7 @@ module "framework" {
 module "spoke_1" {
   for_each = local.transit_firenet
   source   = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version  = "1.4.1"
+  version  = "1.5.0"
 
   cloud      = each.value.transit_cloud
   name       = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-1"
@@ -120,7 +120,7 @@ module "spoke_1" {
 module "spoke_2" {
   for_each = { for k, v in local.transit_firenet : k => v if k != "oci_singapore" }
   source   = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version  = "1.4.1"
+  version  = "1.5.0"
 
   cloud      = each.value.transit_cloud
   name       = "avx-${replace(lower(each.value.transit_region_name), " ", "-")}-spoke-2"
