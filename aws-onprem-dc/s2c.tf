@@ -74,8 +74,8 @@ resource "aviatrix_transit_external_device_conn" "this" {
   bgp_remote_as_num  = 65000
   remote_gateway_ip  = aws_vpn_connection.this.tunnel1_address #,${aws_vpn_connection.this_ha.tunnel1_address}"
   pre_shared_key     = random_password.this.result
-  local_tunnel_cidr  = "169.254.100.2/30,169.254.101.2/30"
-  remote_tunnel_cidr = "169.254.100.1/30,169.254.101.1/30"
+  local_tunnel_cidr  = "169.254.100.2/30"
+  remote_tunnel_cidr = "169.254.100.1/30"
 }
 
 resource "aws_route" "s2c" {
