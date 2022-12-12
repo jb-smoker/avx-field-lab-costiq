@@ -14,7 +14,7 @@ locals {
       transit_cidr        = "10.2.0.0/23"
       transit_region_name = "Central US"
       transit_asn         = 65102
-      htransit_ha_gwa_gw  = false
+      transit_ha_gw       = false
     },
     oci_singapore = {
       transit_account     = var.oci_account
